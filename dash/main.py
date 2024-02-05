@@ -1,22 +1,26 @@
 import dash
-from dash import html, dcc, Input, Output, State
-from dash.dependencies import Input, Output, State, MATCH, ALL
+from dash import html, dcc, Input, Output
 import plotly.express as px
-import pymongo
 import pandas as pd
-from bson.objectid import ObjectId
+import pymongo
+from app_category_trend_hist import app as category_app
+# from app_price_trend_hist_perc import app price_trend_hist_perc as price_trend_hist_perc
+from app_price_trend import app as price_app
+
+
+from app_rating_trend_hist import app as rating_app
 
 # Connect to MongoDB
-client = pymongo.MongoClient("mongodb://loke:loke@127.0.0.1:27017/")
-db = client['scraped_books']
+client = pymongo.MongoClient("mongodb://127.0.0.1:27017/")
+db = client['biblio']
 
 # Initialize Dash app
-app = dash.Dash(__name__, external_stylesheets=['assets/style.css'])
+app = dash.Dash(__name__, external_stylesheets=['assets/style.css'], suppress_callback_exceptions=True)
 
 app.layout = html.Div(className="container", children=[
     html.Div(className="navbar", children=[
         html.Div(id='logo', className='logo', children=[
-            html.Img(id='', children=[], src='assets/icons/logo.svg', alt=''),
+            html.Img(src='assets/icons/logo.svg', alt=''),
             html.H1("Bookle"),
         ]),
         html.Div(className='searchbarContainer', children=[
@@ -34,81 +38,40 @@ app.layout = html.Div(className="container", children=[
         html.Div(id='book-details', className='book-details')
     ]),
     
-    html.Div(className="plot", children=[
-        dcc.Graph(id='category-plot')
+    html.Div(className="trends-container", children=[
+        html.Div(className="trend-item", children=[
+            dcc.Graph(id='category-plot')
+        ]),
+        html.Div(className="trend-item", children=[
+            dcc.Graph(id='price-trend-plot')
+        ]),
+        html.Div(className="trend-item", children=[
+            dcc.Graph(id='rating-trend-plot')
+        ]),
     ]),
 ])
 
-@app.callback(
-    Output('search-output', 'children'),
-    Input('search-button', 'n_clicks'),
-    [State('search-input', 'value')],
-)
-def update_output(n_clicks, value):
-    if n_clicks is None or not value:
-        return
-    results = list(db.books.find({"title": {"$regex": value, "$options": "i"}}))
-    results = [{**doc, '_id': str(doc['_id'])} for doc in results]
-    results_count = len(results)
-    if results_count > 0:
-        return html.Ul([
-            html.Li(html.A(
-                f"Title: {book['title']}, Category: {book['category']}, Price: {book['price']}",
-                href='#',
-                id={'type': 'book-item', 'index': book['_id']}
-            )) for book in results
-        ])
-    else:
-        return "No books found"
-
-@app.callback(
-    Output('book-details', 'children'),
-    [Input({'type': 'book-item', 'index': ALL}, 'n_clicks')],
-    [State({'type': 'book-item', 'index': ALL}, 'id')]
-)
-def display_book_details(n_clicks, ids):
-    ctx = dash.callback_context
-    if not ctx.triggered:
-        return
-
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    book_id = eval(button_id)['index']
-    book = db.books.find_one({"_id": ObjectId(book_id)})
-
-    if book:
-        return html.Div([
-            html.H3(book['title']),
-            # html.Img(src=f"assets/book_images/{book['image_names'][0]}"),
-            html.P(f"Rating: {book['rating']}"),
-            html.P(f"Price: {book['price']}"),
-            html.P(f"Category: {book['category']}"),
-            html.P(f"Description: {book['description']}"),
-            html.P(f"UPC: {book['upc']}")
-        ])
-    else:
-        return "Book details not found."
-
+# Callbacks
 @app.callback(
     Output('category-plot', 'figure'),
     Input('search-button', 'n_clicks')
 )
 def update_category_plot(n_clicks):
-    data = list(db.books.find({}, {"_id": 0, "category": 1}))
-    df = pd.DataFrame(data)
-    category_counts = df['category'].value_counts().reset_index()
-    category_counts.columns = ['category', 'count']
+    return category_app.callback_map['update_category_plot']('clicks')(n_clicks)
 
-    fig = px.bar(category_counts, x='category', y='count', title='Number of Books by Category', color='category')
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        title_font_color='white',
-        font_color='white',
-        xaxis=dict(color='white'),
-        yaxis=dict(color='white'),
-    )
-    fig.update_layout(legend=dict(font=dict(color='white')))
-    return fig
+@app.callback(
+    Output('price-trend-plot', 'figure'),
+    Input('search-button', 'n_clicks')
+)
+def update_price_trend_plot(n_clicks):
+    return price_app.callback_map['update_price_trend_plot']('clicks')(n_clicks)
+
+@app.callback(
+    Output('rating-trend-plot', 'figure'),
+    Input('search-button', 'n_clicks')
+)
+def update_rating_trend_plot(n_clicks):
+    return rating_app.callback_map['update_rating_trend_plot']('clicks')(n_clicks)
 
 if __name__ == '__main__':
     app.run_server(debug=True)

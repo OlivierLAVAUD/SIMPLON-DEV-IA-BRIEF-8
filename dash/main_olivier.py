@@ -100,6 +100,7 @@ def update_category_plot(n_clicks):
     category_counts.columns = ['category', 'count']
 
     fig = px.bar(category_counts, x='category', y='count', title='Number of Books by Category', color='category')
+    # fig.update_xaxes(categoryorder=<VALUE>) met un orde dans les categories
     fig.update_layout(
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
